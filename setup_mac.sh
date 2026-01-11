@@ -9,7 +9,7 @@ ask_confirmation() {
     local prompt="$1"
     echo "$prompt [y/n]"
     read -k 1 response
-    echo "" 
+    echo ""
     # I check for y (yes) or uppercase Y
     if [[ "$response" == "y" || "$response" == "Y" ]]; then
         return 0
@@ -27,7 +27,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 if ! command -v brew &> /dev/null; then
     echo "Homebrew is missing. Installing now..."
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    
+
     if [[ -f /opt/homebrew/bin/brew ]]; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
     elif [[ -f /usr/local/bin/brew ]]; then
@@ -119,7 +119,7 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
 
     for app in "${app_list[@]}"; do
         source="${app_sources[$app]}"
-        
+
         if [[ "$app" == "SF Symbols" || "$app" == "SwiftBar" || "$source" == "SYSTEM" ]]; then
             continue
         fi
@@ -128,7 +128,7 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
         echo "App: ${fg[bold]}$app${reset_color} (Current: $source)"
         # I accept a single character for the action
         read -k 1 action
-        echo "" 
+        echo ""
 
         if [[ "$action" == "a" || "$action" == "A" ]]; then
             clean_name=$(echo "$app" | sed 's/[0-9.]*$//' | tr -d ':-')
@@ -138,7 +138,10 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
                 mas_id=$(echo "$mas_result" | awk '{print $1}')
                 if ask_confirmation "Install from App Store and overwrite current version?"; then
                     [[ "$source" == "HOMEBREW" ]] && brew uninstall --cask "$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')" 2>/dev/null
-                    rm -rf "/Applications/$app.app"
+                    # Ensure 'app' is set and path exists
+                    if [[ -n "${app}" && -d "/Applications/${app}.app" ]]; then
+                        rm -rf "/Applications/${app}.app"
+                    fi
                     mas install "$mas_id"
                 fi
             fi
@@ -161,7 +164,7 @@ echo "${fg[green]}=== SWIFTBAR CONFIGURATION ===${reset_color}"
 
 DEFAULT_DIR="$HOME/Documents/SwiftBarPlugins"
 # I use a generic placeholder for the URL
-GITHUB_URL="https://raw.githubusercontent.com/pr-fuzzylogic/mac_software_updater/main/update_system.1h.sh" 
+GITHUB_URL="https://raw.githubusercontent.com/pr-fuzzylogic/mac_software_updater/main/update_system.1h.sh"
 
 if ask_confirmation "Use default directory $DEFAULT_DIR?"; then
     PLUGIN_DIR="$DEFAULT_DIR"
