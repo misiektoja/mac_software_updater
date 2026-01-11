@@ -29,8 +29,12 @@ fi
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 # I check Homebrew
-list_brew=$(brew outdated --verbose --greedy)
-count_brew=$(echo -n "$list_brew" | grep -c '[^[:space:]]')
+list_brew=""
+count_brew=0
+if command -v brew &> /dev/null; then
+    list_brew=$(brew outdated --verbose --greedy)
+    count_brew=$(echo -n "$list_brew" | grep -c '[^[:space:]]')
+fi
 
 # I check App Store
 list_mas=""
