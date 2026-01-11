@@ -147,18 +147,54 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
 
         echo ""
         echo "App: ${fg[bold]}$app${reset_color} (Current: $source)"
-        # I accept a single character for the action
-        read -k 1 action
+
+        # Pre-check availability
+        clean_name=$(echo "$app" | sed 's/[0-9.]*$//' | tr -d ':-')
+
+        # Check App Store
+        mas_check=$(mas search "$clean_name" | head -n 1)
+        if [[ -n "$mas_check" ]]; then
+            mas_status="${fg[green]}Available (${mas_check%% *})${reset_color}"
+            mas_available=1
+        else
+            mas_status="${fg[red]}Not found${reset_color}"
+            mas_available=0
+        fi
+
+        # Check Homebrew
+        token=$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+        if brew info --cask "$token" &> /dev/null; then
+            brew_status="${fg[green]}Available ($token)${reset_color}"
+            brew_available=1
+        else
+             # Fallback search
+             brew_search=$(brew search --cask "$app" 2>/dev/null | grep -v "Warning" | head -n 1)
+             if [[ -n "$brew_search" ]]; then
+                brew_status="${fg[yellow]}Found as '$brew_search'${reset_color}"
+                token="$brew_search"
+                brew_available=1
+             else
+                brew_status="${fg[red]}Not found${reset_color}"
+                brew_available=0
+             fi
+        fi
+
+        echo "Options:"
+        echo "[A]pp Store : $mas_status"
+        echo "[B]rew Cask : $brew_status"
+        echo "[L]eave     : Keep as is"
+
+        echo -n "Choose action [a/b/L]: "
+        read -r action
         echo ""
 
         if [[ "$action" == "a" || "$action" == "A" ]]; then
-            clean_name=$(echo "$app" | sed 's/[0-9.]*$//' | tr -d ':-')
-            mas_result=$(mas search "$clean_name" | head -n 1)
+            if [[ "$mas_available" -eq 1 ]]; then
+                echo "Using detected App Store match: ${mas_check%% *}"
+                # mas_check format is "12345 Name", we want just the ID or just run logic with ID extraction
+                mas_id=$(echo "$mas_check" | awk '{print $1}')
 
-            if [[ -n "$mas_result" ]]; then
-                echo "Found in App Store: ${fg[cyan]}$mas_result${reset_color}"
-                mas_id=$(echo "$mas_result" | awk '{print $1}')
-                if ask_confirmation "Install this from App Store and overwrite current version?"; then
+                if ask_confirmation "Install from App Store and overwrite current version?"; then
                     backup_name="${app}.app.bak"
                     if [[ -n "${app}" && -d "/Applications/${app}.app" ]]; then
                         echo "Backing up original app..."
@@ -171,42 +207,35 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
                         echo "Migration successful. Removing backup..."
                         rm -rf "/Applications/$backup_name"
                     else
-                        echo "${fg[red]}Error: App Store installation failed. Restoring original app...${reset_color}"
+                         echo "${fg[red]}Error: App Store installation failed. Restoring original app...${reset_color}"
                         [[ -d "/Applications/$backup_name" ]] && mv "/Applications/$backup_name" "/Applications/${app}.app"
                     fi
                 fi
+            else
+                echo "${fg[red]}Not available on App Store.${reset_color}"
             fi
 
         elif [[ "$action" == "b" || "$action" == "B" ]]; then
-            token=$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-
-            if ! brew info --cask "$token" &> /dev/null; then
-                echo "Direct match '$token' not found. Searching..."
-                search_result=$(brew search --cask "$app" 2>/dev/null | grep -v "Warning" | head -n 1)
-
-                if [[ -n "$search_result" ]]; then
-                    token="$search_result"
-                    echo "Found match: ${fg[green]}$token${reset_color}"
-                    if ! ask_confirmation "Use this match?"; then
-                        token=""
-                    fi
-                else
-                    echo "No automatic match found for '$app'."
-                    echo -n "Enter Cask name manually (or enter to skip): "
-                    read -r user_token
-                    token="$user_token"
-                fi
-            fi
-
-            if [[ -n "$token" ]]; then
-                 if brew info --cask "$token" &> /dev/null; then
-                    if ask_confirmation "Install '$token' via Brew Cask (force)?"; then
-                        brew install --cask --force "$token"
-                    fi
-                 else
-                    [[ -n "$token" ]] && echo "Skipping: '$token' is not a valid Cask."
+             if [[ "$brew_available" -eq 1 ]]; then
+                 if ask_confirmation "Install '$token' via Brew Cask (force)?"; then
+                    brew install --cask --force "$token"
                  fi
-            fi
+             else
+                 # Manual fallback if they insist on B even though we didn't find it automatically
+                 echo "${fg[yellow]}No automatic match found.${reset_color}"
+                 echo -n "Enter Cask name manually (or enter to skip): "
+                 read -r user_token
+
+                 if [[ -n "$user_token" ]]; then
+                     if brew info --cask "$user_token" &> /dev/null; then
+                        if ask_confirmation "Install '$user_token' via Brew Cask (force)?"; then
+                            brew install --cask --force "$user_token"
+                        fi
+                     else
+                        echo "Skipping: '$user_token' is not a valid Cask."
+                     fi
+                 fi
+             fi
         fi
     done
 else
