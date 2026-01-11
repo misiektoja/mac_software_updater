@@ -1,5 +1,6 @@
 ![License](https://img.shields.io/github/license/pr-fuzzylogic/mac_software_updater?color=blue)
 ![Last Commit](https://img.shields.io/github/last-commit/pr-fuzzylogic/mac_software_updater)
+![Repo Size](https://img.shields.io/github/repo-size/pr-fuzzylogic/mac_software_updater)
 
 # macOS Software Update & Migration Toolkit 
 
@@ -25,6 +26,11 @@ Run via terminal, this script scans your `/Applications` folder to detect unmana
 A lightweight plugin for **SwiftBar**.
 * **Status:** A discreet icon in the menu bar displays the total count of available updates (combining Homebrew & App Store).
 * **Action:** Clicking "Update All" launches a terminal window to run `brew upgrade` and `mas upgrade`, followed by a system cleanup.
+
+## Preview
+
+### Menu Bar Monitor
+![Menu Bar Icon](img/menubar_monitor.png)
 
 ---
 
