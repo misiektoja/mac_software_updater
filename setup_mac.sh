@@ -192,7 +192,7 @@ if ask_confirmation "Use default directory $DEFAULT_DIR?"; then
     PLUGIN_DIR="$DEFAULT_DIR"
 else
     echo "Enter full path:"
-    read user_path
+    read -r user_path
     PLUGIN_DIR="${user_path/#\~/$HOME}"
 fi
 
