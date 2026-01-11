@@ -137,8 +137,9 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
             mas_result=$(mas search "$clean_name" | head -n 1)
 
             if [[ -n "$mas_result" ]]; then
+                echo "Found in App Store: ${fg[cyan]}$mas_result${reset_color}"
                 mas_id=$(echo "$mas_result" | awk '{print $1}')
-                if ask_confirmation "Install from App Store and overwrite current version?"; then
+                if ask_confirmation "Install this from App Store and overwrite current version?"; then
                     backup_name="${app}.app.bak"
                     if [[ -n "${app}" && -d "/Applications/${app}.app" ]]; then
                         echo "Backing up original app..."
@@ -166,7 +167,10 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
 
                 if [[ -n "$search_result" ]]; then
                     token="$search_result"
-                    echo "Found match: $token"
+                    echo "Found match: ${fg[green]}$token${reset_color}"
+                    if ! ask_confirmation "Use this match?"; then
+                        token=""
+                    fi
                 else
                     echo "No automatic match found for '$app'."
                     echo -n "Enter Cask name manually (or enter to skip): "
