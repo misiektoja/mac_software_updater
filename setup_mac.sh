@@ -148,10 +148,30 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
 
         elif [[ "$action" == "b" || "$action" == "B" ]]; then
             token=$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-            if brew info --cask "$token" &> /dev/null; then
-                if ask_confirmation "Install via Brew Cask (force)?"; then
-                    brew install --cask --force "$token"
+
+            if ! brew info --cask "$token" &> /dev/null; then
+                echo "Direct match '$token' not found. Searching..."
+                search_result=$(brew search --cask "$app" 2>/dev/null | grep -v "Warning" | head -n 1)
+
+                if [[ -n "$search_result" ]]; then
+                    token="$search_result"
+                    echo "Found match: $token"
+                else
+                    echo "No automatic match found for '$app'."
+                    echo -n "Enter Cask name manually (or enter to skip): "
+                    read -r user_token
+                    token="$user_token"
                 fi
+            fi
+
+            if [[ -n "$token" ]]; then
+                 if brew info --cask "$token" &> /dev/null; then
+                    if ask_confirmation "Install '$token' via Brew Cask (force)?"; then
+                        brew install --cask --force "$token"
+                    fi
+                 else
+                    [[ -n "$token" ]] && echo "Skipping: '$token' is not a valid Cask."
+                 fi
             fi
         fi
     done
