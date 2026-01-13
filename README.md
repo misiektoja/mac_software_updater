@@ -33,8 +33,8 @@ A lightweight plugin for **SwiftBar**.
 ### Menu Bar States
 | Status | Icon Appearance | Description |
 | :--- | :--- | :--- |
-| **Up to Date** | ![Everything Updated](img/menubar_icon_everything_updated.png?v=2) | System is clean, checkmark icon displayed. |
-| **Updates Ready** | ![Updates Ready](img/menubar_icon_update_ready.png?v=2) | Badge with update count and red sync icon. |
+| **Up to Date** | <img src="img/menubar_icon_everything_updated.png?v=3" width="200" alt="Everything Updated"> | System is clean, checkmark icon displayed. |
+| **Updates Ready** | <img src="img/menubar_icon_update_ready.png?v=3" width="200" alt="Updates Ready"> | Badge with update count and red sync icon. |
 
 ### Dropdown Interface
 | Category | Screenshot | Features |
