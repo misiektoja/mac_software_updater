@@ -31,11 +31,20 @@ A lightweight plugin for **SwiftBar**.
 ## Screenshots
 
 ### Menu Bar States
+
 | Status | Icon Appearance | Description |
 | :--- | :--- | :--- |
 | **Up to Date** | <img src="img/menubar_icon_everything_updated.png?v=2" height="24" alt="Everything Updated"> | System is clean, checkmark icon displayed. |
 | **Updates Ready** | <img src="img/menubar_icon_update_ready.png?v=2" height="24" alt="Updates Ready"> | Badge with update count and red sync icon. |
 | **Plugin Update** | <img src="img/menubar_icon_plugin_update.png" height="24" alt="Plugin Update"> | New version of the this tool is available. |
+
+### Dropdown Interface
+
+| Category | Screenshot | Features |
+| :--- | :--- | :--- |
+| **Main View** | ![Monitor](img/menubar_monitor.png?v=2) | Overview of Homebrew and App Store updates. |
+| **Statistics** | ![Monitor Details](img/menubar_monitor_details.png) | Submenu showing counts for Casks, Formulae, and MAS apps. |
+| **History** | ![History](img/menubar_monitor_history.png) | Submenu tracking update counts for the last 7 and 30 days. |
 
 ### Dropdown Interface
 | Category | Screenshot | Features |
