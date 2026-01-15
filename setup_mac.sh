@@ -4,6 +4,8 @@
 autoload -U colors && colors
 set -e
 set -o pipefail
+# Enable extended globbing to support advanced pattern matching like (#i)
+setopt extended_glob
 
 # Define a helper function for yes/no confirmations
 
@@ -16,11 +18,11 @@ echo "${fg[blue]}██║ ╚═╝ ██║██║  ██║╚███�
 echo "${fg[blue]}╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝${reset_color}"
 echo ""
 echo "${fg[cyan]}--------------------------------------------------${reset_color}"
-echo "${fg[bold]}  mac_software_updater${reset_color} v1.2.0"
+echo "${fg[bold]}  mac_software_updater${reset_color} v1.2.1"
 echo "${fg[cyan]}  Software Update & Application Migration Toolkit${reset_color}"
 echo "${fg[cyan]}--------------------------------------------------${reset_color}"
 echo "This script will: "
-echo "1. Install necessary tools (Homebrew, mas, SwiftBar)"
+echo "1. Install necessary missing tools (Homebrew, mas, SwiftBar)"
 echo "2. Check and Migrate your applications to managed versions"
 echo "3. Configure real-time update monitoring"
 echo ""
@@ -71,7 +73,9 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 # Check for Homebrew installation
 if ! command -v brew &> /dev/null; then
-    echo "Homebrew is missing. Installing now..."
+    echo "${fg[yellow]}Homebrew not found in PATH. Starting installation...${reset_color}"
+    echo "Homebrew is required to manage your packages and updates."
+    echo "Note: If you believe Homebrew is already installed, please cancel (Ctrl+C) and add it to your PATH."
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
     if [[ -f /opt/homebrew/bin/brew ]]; then
@@ -80,15 +84,15 @@ if ! command -v brew &> /dev/null; then
         eval "$(/usr/local/bin/brew shellenv)"
     fi
 else
-    echo "Homebrew is already installed."
+    echo "${fg[green]}Homebrew is already installed.${reset_color} No action required for this step."
 fi
 
 # Check for the mas CLI tool
 if ! command -v mas &> /dev/null; then
-    echo "Installing mas via Homebrew..."
+    echo "${fg[yellow]}Installing mas via Homebrew...${reset_color}"
     brew install mas
 else
-    echo "mas tool is present."
+    echo "${fg[green]}mas tool is present.${reset_color}"
 fi
 
 # Check for SF Symbols
@@ -102,8 +106,10 @@ fi
 
 # Check for SwiftBar
 if ! brew list --cask swiftbar &> /dev/null; then
-    echo "Installing SwiftBar..."
+    echo "${fg[yellow]}Installing SwiftBar...${reset_color}"
     brew install --cask swiftbar
+else
+    echo "${fg[green]}SwiftBar is already installed.${reset_color}"
 fi
 
 echo ""
@@ -128,11 +134,27 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
         INSTALLED_CASKS_STR=""
     fi
 
-    for app_path in /Applications/*.app(N); do
+    # Scan /Applications recursively up to 2 levels deep
+    # (N/) - null_glob to avoid errors if no match and restrict results to directories
+    for app_path in /Applications/{,*/,*/*/}*.app(N/); do
+        
+        # Skip apps located inside other app bundles to avoid helpers or plugins
+        if [[ "$app_path" == *.app/*.app* ]]; then
+            continue
+        fi
+
         app_filename=$(basename "$app_path")
         app_name="${app_filename%.app}"
-        app_list+=("$app_name")
 
+        # Exclude uninstallers and setup tools using case-insensitive globbing
+        # The (#i) flag ensures matches like Uninstaller, uninstaller, or APPNAMEUninstaller
+        if [[ "$app_name" == (#i)*uninstall* || "$app_name" == (#i)*updater* || "$app_name" == (#i)*setup* ]]; then
+            continue
+        fi
+
+        app_list+=("$app_name")
+        
+        # Check if the app is managed by Homebrew via symlink in Caskroom
         if [[ -L "$app_path" ]]; then
             target_path=$(readlink "$app_path")
             if [[ "$target_path" == *"$CASKROOM_PATH"* ]]; then
@@ -141,6 +163,7 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
             fi
         fi
 
+        # Identify App Store apps by checking for the receipt directory
         if [[ -d "$app_path/Contents/_MASReceipt" ]]; then
             app_sources[$app_name]="APP STORE"
             continue
@@ -396,6 +419,7 @@ if [[ -z "$PLUGIN_DIR" ]]; then
         PLUGIN_DIR="${user_path/#\~/$HOME}"
     fi
     # Only update global setting if it's different or missing
+    # Use quotes for variables that might contain spaces in paths
     if [[ "$PLUGIN_DIR" != "$EXPANDED_EXISTING" ]]; then
         defaults write com.ameba.SwiftBar PluginDirectory -string "$PLUGIN_DIR"
     fi
@@ -423,6 +447,8 @@ else
     echo "UPDATES_ENABLED=\"false\"" > "$CONFIG_FILE"
     echo "Self-update checks: ${fg[red]}Disabled${reset_color}"
 fi
+
+
 chmod 600 "$CONFIG_FILE" 2>/dev/null || true
 
 # Download the plugin and save it with a 1d (one day) default interval
@@ -435,5 +461,33 @@ chmod +x "$PLUGIN_DIR/update_system.1d.sh"
 killall SwiftBar 2>/dev/null || true
 open -a SwiftBar
 
+# Copy the setup script for future reconfiguration
+echo "Storing setup script for future use..."
+cp "$0" "$APP_DIR/setup_mac.sh"
+chmod +x "$APP_DIR/setup_mac.sh"
+
+# Finalizing installation by moving the local uninstaller script
 echo ""
-echo "Setup complete."
+echo "${fg[yellow]}=== UNINSTALLER CONFIGURATION ===${reset_color}"
+
+# Define the local source and destination
+LOCAL_SOURCE="./uninstall.sh"
+LOCAL_DESTINATION="$APP_DIR/uninstall.sh"
+
+# Check if uninstaller exists in the current directory and move it
+if [[ -f "$LOCAL_SOURCE" ]]; then
+    echo "Moving uninstaller to application directory..."
+    cp "$LOCAL_SOURCE" "$LOCAL_DESTINATION"
+    chmod +x "$LOCAL_DESTINATION"
+    echo "Uninstaller is ready at: ${fg[cyan]}$LOCAL_DESTINATION${reset_color}"
+    echo "You can run it anytime to safely remove the toolkit and its configuration."
+else
+    echo "${fg[red]}Warning: uninstall.sh not found in the current folder.${reset_color}"
+    echo "Please ensure you have extracted all files from the Installer.zip. You can also download it from Github"
+fi
+
+echo ""
+echo "${fg[green]}Setup complete!${reset_color} Please check SwiftBar in your menu bar."
+echo ""
+echo "${fg[green]}Success!${reset_color} All files have been moved to: ${fg[cyan]}$APP_DIR${reset_color}"
+echo "You can now safely delete the Installer folder from your Downloads."

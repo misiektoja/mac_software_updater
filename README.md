@@ -85,6 +85,19 @@ This toolkit acts as the "glue" integrating standard macOS power-user tools:
 
 ---
 
+## 🗑️ Uninstallation
+
+If you decide to remove the toolkit, an uninstaller script is automatically placed in your application support folder during setup.
+
+To uninstall:
+1. Open **Terminal**.
+2. Run the following command:
+```zsh
+~/Library/Application\ Support/MacSoftwareUpdater/uninstall.sh
+```
+
+---
+
 ### 🎨 How to Customize Icons
 If you want to change the icons displayed in your menu bar, follow these steps:
 1. Open the **SF Symbols** app to find a symbol you like (e.g., `gear`, `bolt.fill`).

@@ -1,7 +1,7 @@
 #!/bin/zsh
 
 # <bitbar.title>macOS Software Update & Migration Toolkit</bitbar.title>
-# <bitbar.version>v1.2.0</bitbar.version>
+# <bitbar.version>v1.2.1</bitbar.version>
 # <bitbar.author>pr-fuzzylogic</bitbar.author>
 # <bitbar.author.github>pr-fuzzylogic</bitbar.author.github>
 # <bitbar.desc>Monitors Homebrew and App Store updates, tracks history and stats.</bitbar.desc>
@@ -74,6 +74,11 @@ if [[ "$UPDATES_ENABLED" != "true" && "$UPDATES_ENABLED" != "false" ]]; then
     UPDATES_ENABLED="true"
 fi
 
+# Escaping function
+swiftbar_sq_escape() {
+  print -r -- "${1//\'/\'\\\'\'}"
+}
+
 # --- ACTIONS SECTION ---
 
 # 1. Toggle Auto-Update Preference
@@ -136,38 +141,46 @@ fi
 # 4. Self-Update Action
 if [[ "$1" == "update_plugin" ]]; then
     set -e
-    echo "⬇️  Downloading latest version..."
+    BASE_URL="https://raw.githubusercontent.com/pr-fuzzylogic/mac_software_updater/main"
     
-    # Download to a temporary file first to ensure integrity
-    TEMP_TARGET="/tmp/update_system.1h.sh.new"
-    if curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 5 --max-time 30 "$REMOTE_RAW_URL" -o "$TEMP_TARGET"; then
-        echo "✅ Download complete."
-        
-        if ! head -n 1 "$TEMP_TARGET" | grep -q '^#!/bin/zsh'; then
-            echo "❌ Error: Downloaded file does not look like a zsh script. Aborting."
+    echo "⬇️  Updating all toolkit components..."
+
+    # 1. Update the setup script in APP_DIR
+    echo "Updating Setup Wizard..."
+    curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 5 "$BASE_URL/setup_mac.sh" -o "$APP_DIR/setup_mac.sh"
+    chmod +x "$APP_DIR/setup_mac.sh"
+
+    # 2. Update the uninstaller in APP_DIR
+    echo "Updating Uninstaller..."
+    curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 5 "$BASE_URL/uninstall.sh" -o "$APP_DIR/uninstall.sh"
+    chmod +x "$APP_DIR/uninstall.sh"
+
+    # 3. Update the plugin itself (the current file)
+    echo "Updating Menu Bar Monitor..."
+    TEMP_TARGET="$(mktemp "${TMPDIR:-/tmp}/update_system.selfupdate.XXXXXX")"
+    trap 'rm -f "$TEMP_TARGET"' EXIT
+    if curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 5 --max-time 30 "$BASE_URL/update_system.1h.sh" -o "$TEMP_TARGET"; then
+        if head -n 1 "$TEMP_TARGET" | grep -q '^#!/bin/zsh'; then
+            mv "$TEMP_TARGET" "$0"
+            chmod +x "$0"
+            
+            # Clear the update pending flag since we just updated
+            rm -f "$APP_DIR/.plugin_update_pending"
+            
+            echo "✅ All components updated successfully."
+            echo "🔄 Refreshing SwiftBar..."
+            sleep 2
+            open -g "swiftbar://refreshallplugins"
+        else
+            echo "❌ Error: Downloaded plugin file is invalid."
             rm -f "$TEMP_TARGET"
             exit 1
         fi
-
-
-        echo "🔄 Installing..."
-        
-        # Overwrite the current script
-        mv "$TEMP_TARGET" "$0"
-        chmod +x "$0"
-        
-        echo "✅ Plugin updated successfully."
-        echo "🔄 Refreshing SwiftBar interface..."
-        
-        sleep 2
-        open -g "swiftbar://refreshallplugins"
-        
-        echo "Done! The new version is active."
     else
-        echo "❌ Error: Download failed."
+        echo "❌ Error: Plugin download failed."
         exit 1
     fi
-    echo "Press any key to close."
+    echo "Done! Press any key to close."
     read -k1
     exit 0
 fi
@@ -251,24 +264,54 @@ fi
 
 # --- STATUS CHECK SECTION (Background) ---
 
-# Check for Plugin Update using SHA-256 Hash
+# Check for Plugin Update once every 3 days using ETag for performance
 update_available=0
 if [[ "$UPDATES_ENABLED" == "true" ]]; then
-    remote_temp="/tmp/update_system_remote_check.tmp"
+    LAST_CHECK_FILE="$APP_DIR/.last_plugin_check"
+    ETAG_FILE="$APP_DIR/.plugin_etag"
+    PENDING_FLAG="$APP_DIR/.plugin_update_pending"
+    
+    CURRENT_TIME=$(date +%s)
+    LAST_CHECK=0
+    [[ -f "$LAST_CHECK_FILE" ]] && LAST_CHECK=$(cat "$LAST_CHECK_FILE")
+    
+    # Check only if 3 days (259200 seconds) have passed
+    if [[ $((CURRENT_TIME - LAST_CHECK)) -gt 259200 ]]; then
+        last_etag=""
+        [[ -f "$ETAG_FILE" ]] && last_etag=$(cat "$ETAG_FILE")
 
-    if curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 3 --max-time 5 "$REMOTE_RAW_URL" -o "$remote_temp"; then
-        if ! head -n 1 "$remote_temp" | grep -q '^#!/bin/zsh'; then
-            rm -f "$remote_temp"
-        else
-            local_hash=$(shasum -a 256 "$0" | awk '{print $1}')
-            remote_hash=$(shasum -a 256 "$remote_temp" | awk '{print $1}')
-            if [[ "$local_hash" != "$remote_hash" ]]; then
-                update_available=1
+        # Perform HEAD request to check ETag without downloading the file
+        # Using connect-timeout to ensure UI responsiveness
+        current_etag=$(curl -fI -LsS --proto '=https' --tlsv1.2 --connect-timeout 3 "$REMOTE_RAW_URL" | grep -i "etag:" | awk '{print $2}' | tr -d '\r\n')
+
+        if [[ -n "$current_etag" && "$current_etag" != "$last_etag" ]]; then
+            # ETag changed, now perform full check with SHA-256
+            remote_temp="$(mktemp "${TMPDIR:-/tmp}/update_system.remotecheck.XXXXXX")"
+            trap 'rm -f "$remote_temp"' EXIT
+            if curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 3 "$REMOTE_RAW_URL" -o "$remote_temp"; then
+                if head -n 1 "$remote_temp" | grep -q '^#!/bin/zsh'; then
+                    local_hash=$(shasum -a 256 "$0" | awk '{print $1}')
+                    remote_hash=$(shasum -a 256 "$remote_temp" | awk '{print $1}')
+                    
+                    if [[ "$local_hash" != "$remote_hash" ]]; then
+                        touch "$PENDING_FLAG"
+                        # Store ETag only after confirming a real hash difference
+                        echo "$current_etag" > "$ETAG_FILE"
+                    else
+                        rm -f "$PENDING_FLAG"
+                        # Also update ETag if file is different but version is same (e.g. metadata change)
+                        echo "$current_etag" > "$ETAG_FILE"
+                    fi
+                fi
+                rm -f "$remote_temp"
             fi
         fi
-
-        rm -f "$remote_temp"
+        # Update timestamp to wait another 3 days regardless of the outcome
+        echo "$CURRENT_TIME" > "$LAST_CHECK_FILE"
     fi
+    
+    # Persist the update notification in UI if flag exists
+    [[ -f "$PENDING_FLAG" ]] && update_available=1
 fi
 
 # Check Homebrew for updates
@@ -330,7 +373,7 @@ echo "---"
 
 # Render Plugin Update Notification
 if [[ $update_available -eq 1 ]]; then
-    script_path="${0// /\\ }"
+    script_path="$(swiftbar_sq_escape "$0")"
     echo "Plugin Update Available | color=blue sfimage=arrow.down.circle.fill"
     echo "-- Update Now | bash='$script_path' param1=update_plugin terminal=true sfimage=arrow.triangle.2.circlepath"
     echo "---"
