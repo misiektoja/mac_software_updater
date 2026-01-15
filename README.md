@@ -46,12 +46,6 @@ A lightweight plugin for **SwiftBar**.
 | **Statistics** | ![Monitor Details](img/menubar_monitor_details.png) | Submenu showing counts for Casks, Formulae, and MAS apps. |
 | **History** | ![History](img/menubar_monitor_history.png) | Submenu tracking update counts for the last 7 and 30 days. |
 
-### Dropdown Interface
-| Category | Screenshot | Features |
-| :--- | :--- | :--- |
-| **Main View** | ![Monitor](img/menubar_monitor.png?v=2) | Overview of Homebrew and App Store updates. |
-| **Statistics** | ![Monitor Details](img/menubar_monitor_details.png) | Submenu showing counts for Casks, Formulae, and MAS apps. |
-| **History** | ![History](img/menubar_monitor_history.png) | Submenu tracking update counts for the last 7 and 30 days. |
 ---
 
 ## 📋 Prerequisites
