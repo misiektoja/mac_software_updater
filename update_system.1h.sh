@@ -1,7 +1,7 @@
 #!/bin/zsh
 
 # <bitbar.title>macOS Software Update & Migration Toolkit</bitbar.title>
-# <bitbar.version>v1.2.1</bitbar.version>
+# <bitbar.version>v1.2.2</bitbar.version>
 # <bitbar.author>pr-fuzzylogic</bitbar.author>
 # <bitbar.author.github>pr-fuzzylogic</bitbar.author.github>
 # <bitbar.desc>Monitors Homebrew and App Store updates, tracks history and stats.</bitbar.desc>
@@ -33,6 +33,22 @@ if [[ -d "/opt/homebrew/bin" ]]; then
 else
     export PATH="/usr/local/bin:$PATH"
 fi
+
+# --- SELF CLEANUP ROUTINE ---
+# Detects and removes utility scripts if accidentally placed in the plugin folder
+# This ensures only the main plugin file remains active in SwiftBar
+PLUGIN_Location=$(dirname "$0")
+
+# List of files that should not be in the plugin directory
+Junk_Files=("setup_mac.sh" "uninstall.sh")
+
+for junk in $Junk_Files; do
+    if [[ -f "$PLUGIN_Location/$junk" ]]; then
+        # Silently remove the file
+        rm -f "$PLUGIN_Location/$junk"
+    fi
+done
+
 
 # --- CRITICAL CHECK: HOMEBREW EXISTENCE ---
 # Verify if Homebrew is installed because the script cannot function without it

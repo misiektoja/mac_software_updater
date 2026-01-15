@@ -1,5 +1,7 @@
 #!/bin/zsh
 
+# <swiftbar.hideSwiftBar>true</swiftbar.hideSwiftBar>
+
 # Enable colors for better terminal output visibility
 autoload -U colors && colors
 set -e

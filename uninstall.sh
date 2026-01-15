@@ -1,7 +1,9 @@
 #!/bin/zsh
 
+# <swiftbar.hideSwiftBar>true</swiftbar.hideSwiftBar>
 # <bitbar.title>Mac Software Updater Uninstaller</bitbar.title>
 # <bitbar.desc>Safely removes the updater script, logs, and optional dependencies.</bitbar.desc>
+
 
 autoload -U colors && colors
 set -e
