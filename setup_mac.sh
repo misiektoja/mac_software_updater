@@ -1,7 +1,5 @@
 #!/bin/zsh
 
-# <swiftbar.hideSwiftBar>true</swiftbar.hideSwiftBar>
-
 # Enable colors for better terminal output visibility
 autoload -U colors && colors
 set -e
@@ -20,7 +18,7 @@ echo "${fg[blue]}██║ ╚═╝ ██║██║  ██║╚███�
 echo "${fg[blue]}╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝${reset_color}"
 echo ""
 echo "${fg[cyan]}--------------------------------------------------${reset_color}"
-echo "${fg[bold]}  mac_software_updater${reset_color} v1.2.3"
+echo "${fg[bold]}  mac_software_updater${reset_color} v1.2.4"
 echo "${fg[cyan]}  Software Update & Application Migration Toolkit${reset_color}"
 echo "${fg[cyan]}--------------------------------------------------${reset_color}"
 echo "This script will: "
@@ -95,15 +93,6 @@ if ! command -v mas &> /dev/null; then
     brew install mas
 else
     echo "${fg[green]}mas tool is present.${reset_color}"
-fi
-
-# Check for SF Symbols
-if ! brew list --cask sf-symbols &> /dev/null; then
-    echo "Optional: The 'SF Symbols' browser is only needed if you want to browse/customize icons."
-    if ask_confirmation "Would you like to install SF Symbols browser? (press 'y' if you plan to customize icons, otherwise 'n')"; then
-        echo "Installing SF Symbols..."
-        brew install --cask sf-symbols
-    fi
 fi
 
 # Check for SwiftBar
@@ -218,7 +207,7 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
     for app in "${app_list[@]}"; do
         source="${app_sources[$app]}"
 
-        if [[ "$app" == "SF Symbols" || "$app" == "SwiftBar" || "$source" == "SYSTEM" ]]; then
+        if [[ "$app" == "SwiftBar" || "$source" == "SYSTEM" ]]; then
             continue
         fi
 
@@ -320,16 +309,18 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
                     quit_app "$app"
 
                     backup_name="${app}.app.bak"
-                    if [[ -n "${app}" && -d "/Applications/${app}.app" ]]; then
+                    app_path="/Applications/${app}.app"
+                    backup_path="/Applications/$backup_name"
+                    if [[ -n "${app}" && -d "$app_path" ]]; then
                         echo "Backing up original app..."
-                        mv "/Applications/${app}.app" "/Applications/$backup_name"
+                        mv "$app_path" "$backup_path" || sudo mv "$app_path" "$backup_path"
                     fi
 
                     [[ "$source" == "HOMEBREW" ]] && brew uninstall --cask "$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')" 2>/dev/null
 
                     if mas install "$mas_id"; then
                         echo "Migration successful. Removing backup..."
-                        rm -rf "/Applications/$backup_name"
+                        rm -rf "$backup_path" || sudo rm -rf "$backup_path"
 
                         if [[ "$was_running" -eq 1 ]]; then
                             echo "Restarting ${fg[bold]}$app${reset_color}..."
@@ -337,7 +328,9 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
                         fi
                     else
                          echo "${fg[red]}Error: App Store installation failed. Restoring original app...${reset_color}"
-                        [[ -d "/Applications/$backup_name" ]] && mv "/Applications/$backup_name" "/Applications/${app}.app"
+                        if [[ -d "$backup_path" ]]; then
+                             mv "$backup_path" "$app_path" || sudo mv "$backup_path" "$app_path"
+                        fi
                     fi
                 fi
             else
@@ -346,43 +339,104 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
 
         elif [[ "$action" == "b" || "$action" == "B" ]]; then
              if [[ "$brew_available" -eq 1 ]]; then
-                 if ask_confirmation "Install '$token' via Brew Cask (force)?"; then
-                    # Check if running before closing
+                 # Clarify action to the user
+                 if ask_confirmation "Install '$token' via Brew Cask (Migrate to managed)?"; then
+                    
+                    # Graceful application termination
                     was_running=0
                     if pgrep -f "$app" >/dev/null; then
                          was_running=1
                     fi
-
                     quit_app "$app"
 
-                    if brew install --cask --force "$token"; then
+                    # Path preparation
+                    app_path="/Applications/${app}.app"
+                    backup_path="/Applications/${app}.app.bak"
+
+                    # Backup phase (avoids --force overwrite issues)
+                    # Moving the app ensures Homebrew sees a clean target for linking
+                    if [[ -d "$app_path" ]]; then
+                        echo "Backing up original app to '$backup_path'..."
+                        # Use sudo rarely when normal not work
+                        mv "$app_path" "$backup_path" || sudo mv "$app_path" "$backup_path"
+                    fi
+
+                    # Attempt clean installation
+                    echo "Installing managed version via Homebrew..."
+                    if brew install --cask "$token"; then
+                         # SUCCESS
+                         echo "${fg[green]}Migration successful!${reset_color}"
+                         echo "Removing backup..."
+                         rm -rf "$backup_path" || sudo rm -rf "$backup_path"
+
+                         # Restart app if it was previously running
                          if [[ "$was_running" -eq 1 ]]; then
                             echo "Restarting ${fg[bold]}$app${reset_color}..."
+                            # Wait till system registers new bundle
+                            sleep 1
                             open -a "$app" || echo "${fg[yellow]}Could not restart app automatically.${reset_color}"
                         fi
+                    else
+                        # FAILURE - ROLLBACK
+                        echo ""
+                        echo "${fg[red]}❌ Error: Homebrew installation failed!${reset_color}"
+                        echo "Restoring original application from backup..."
+                        
+                        # Cleanup any partial artifacts
+                        if [[ -d "$app_path" ]]; then
+                            rm -rf "$app_path" || sudo rm -rf "$app_path"
+                        fi
+                        
+                        # Restore backup
+                        mv "$backup_path" "$app_path" || sudo mv "$backup_path" "$app_path"
+                        
+                        echo "${fg[yellow]}Original application restored. Nothing changed.${reset_color}"
                     fi
                  fi
              else
-                 # Manual fallback if they insist on B even though we didn't find it automatically
+                 # Manual fallback logic
                  echo "${fg[yellow]}No automatic match found.${reset_color}"
                  echo -n "Enter Cask name manually (or enter to skip): "
                  read -r user_token
 
                  if [[ -n "$user_token" ]]; then
                      if brew info --cask "$user_token" &> /dev/null; then
-                        if ask_confirmation "Install '$user_token' via Brew Cask (force)?"; then
-                            # Check if running
+                        if ask_confirmation "Try installing '$user_token'?"; then
+                            
                             was_running=0
                             if pgrep -f "$app" >/dev/null; then
                                 was_running=1
                             fi
-
                             quit_app "$app"
-                            if brew install --cask --force "$user_token"; then
+
+                            app_path="/Applications/${app}.app"
+                            backup_path="/Applications/${app}.app.bak"
+
+                            if [[ -d "$app_path" ]]; then
+                                echo "Backing up original app to '$backup_path'..."
+                                mv "$app_path" "$backup_path" || sudo mv "$app_path" "$backup_path"
+                            fi
+
+                            echo "Installing '$user_token' via Homebrew..."
+                            if brew install --cask "$user_token"; then
+                                echo "${fg[green]}Migration successful!${reset_color}"
+                                rm -rf "$backup_path" || sudo rm -rf "$backup_path"
+
                                 if [[ "$was_running" -eq 1 ]]; then
                                     echo "Restarting ${fg[bold]}$app${reset_color}..."
+                                    sleep 1
                                     open -a "$app" || echo "${fg[yellow]}Could not restart app automatically.${reset_color}"
-                                    fi
+                                fi
+                            else
+                                echo ""
+                                echo "${fg[red]}❌ Error: Homebrew installation failed!${reset_color}"
+                                echo "Restoring original application..."
+                                if [[ -d "$app_path" ]]; then
+                                    rm -rf "$app_path" || sudo rm -rf "$app_path"
+                                fi
+
+                                mv "$backup_path" "$app_path" || sudo mv "$backup_path" "$app_path"
+                                echo "${fg[yellow]}Restored.${reset_color}"
                             fi
                         fi
                      else
@@ -392,10 +446,7 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
              fi
         fi
     done
-else
-    echo "Skipping migration. Moving to plugin configuration."
 fi
-
 echo ""
 echo "${fg[green]}=== SWIFTBAR CONFIGURATION ===${reset_color}"
 

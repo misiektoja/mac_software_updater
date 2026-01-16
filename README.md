@@ -1,34 +1,90 @@
 ![License](https://img.shields.io/github/license/pr-fuzzylogic/mac_software_updater?color=blue)
 ![Last Commit](https://img.shields.io/github/last-commit/pr-fuzzylogic/mac_software_updater)
 ![Repo Size](https://img.shields.io/github/repo-size/pr-fuzzylogic/mac_software_updater)
+![Version](https://img.shields.io/badge/version-v1.2.4-green)
 
 # macOS Software Update & Migration Toolkit 
 
-A targeted automation tool designed to bring order to your macOS environment. This project combines **Homebrew**, **Mac App Store CLI (mas)**, and **SwiftBar** to solve two specific problems:
+Mac Software Updater is a targeted automation tool designed to bring order to your macOS environment. This project combines **Homebrew**, **Mac App Store CLI (mas)**, and **SwiftBar** to solve two specific problems:
 1.  **Migration:** Moving manually installed applications under the control of package managers (App Store or Homebrew).
-2.  **Updates:** Monitoring available updates from the menu bar and installing them in bulk via the terminal.
+2.  **Updates:** Monitors updates from the menu bar and applies them via a single terminal command.
 
-## 🚀 How It Works
+
+## 🚀 Key Features
+
+* **Fail-Safe Migration:** Safely converts "Drag & Drop" apps to Homebrew Casks or App Store versions without data loss.
+* **Menu Bar Dashboard:** Detailed breakdown of Casks, Formulae, and Store apps (with version numbers).
+* **One-Click Update:** Runs `brew upgrade` and `mas upgrade` in a terminal window with a single click.
+* **Built-in Uninstaller:** A dedicated script to safely remove the toolkit and its logs.
+* **Smart History:** Tracks how many updates you've installed over the last 7 and 30 days.
+* **Apple Silicon Ready:** Works natively on M1/M2/M3 and Intel Macs.
+
+
+## ⚙️ How It Works
 
 This is not a generic maintenance utility. It is a set of two scripts performing specific tasks:
 
 ### 1. Migration Wizard (`setup_mac.sh`)
 Run via terminal, this script scans your `/Applications` folder to detect unmanaged software. For every app found, it checks if a matching version exists in Homebrew or the App Store.
 
-* **The Audit:** Distinguishes between System apps, Homebrew apps, and manually downloaded apps.
-* **The Decision:** For every "unmanaged" app (e.g., Spotify or Chrome installed manually), it asks you for an action:
+* **Installation:** It can reuse your Homebrew and other tools, but if you don't have them, they will be installed
+* **Verification:** Distinguishes between System apps, Homebrew apps, and manually downloaded apps. It will only migrate unmanaged versions
+* **The Decision:** For every "unmanaged" app (e.g., Spotify or Chrome installed manually), it asks you for an action (depending on availability):
     * **[A]pp Store:** Replaces the manual version with the official App Store version.
     * **[B]rew Cask:** Replaces the manual version with a Homebrew Cask (preserving settings).
     * **[L]eave:** Keeps the app exactly as it is.
-* **Safety First:** Before any migration, it creates a local backup (`.app.bak`). If the new installation fails, it automatically restores the original application.
+* **🛡️Safety First:** Before any migration, it creates a local backup (`.app.bak`). If the new installation fails (network error, hash mismatch) it automatically restores the original application. Only removes the backup if the installation was 100% successful.
 
-### 2. Menu Bar Monitor (`update_system.1h.sh`)
+
+
+### 2. Menu Bar Monitor (`update_system.x.sh`)
 A lightweight plugin for **SwiftBar**.
-* **Status:** A discreet icon in the menu bar displays the total count of available updates (combining Homebrew & App Store).
+* **Status:** A discreet icon in the menu bar displays the total count of available updates (combining Homebrew & App Store) or information that everything is updated
 * **Action:** Clicking "Update All" launches a terminal window to run `brew upgrade` and `mas upgrade`, followed by a system cleanup.
 
 
-## Screenshots
+## 📸 Screenshots
+
+<table width="100%">
+  <tr>
+    <td width="50%" align="center"><b>Main Menu Status</b><br>Overview of Homebrew and App Store updates</td>
+    <td width="50%" align="center"><b>History</b><br>Submenu tracking update counts for the last 7 and 30 days</td>
+  </tr>
+  <tr>
+    <td valign="top" align="center">
+      <img src="img/menubar_monitor.png" alt="Main View" height="400">
+    </td>
+    <td valign="top" align="center">
+      <img src="img/menubar_monitor_history.png" alt="History" wheight="400">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><b>Monitored apps</b><br>Submenu showing numbers of monitored apps</td>
+    <td width="50%" align="center"><b>Managed Apps List</b><br>Submenu showing details of monitored apps</td>
+  </tr>
+  <tr>
+    <td valign="top" align="center">
+      <img src="img/menubar_monitor_details.png" alt="Formulae Details" width="100%">
+    </td>
+    <td valign="top" align="center">
+      <img src="img/menubar_monitor_managed_apps.png" alt="Managed Apps List" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><b>Preferences</b><br>Change Update Frequency, disable or force</td>
+    <td width="50%" align="center"><b>Migration tool</b><br>CLI Tool</td>
+  </tr>
+  <tr>
+    <td valign="top" align="center">
+      <img src="img/menubar_preferences.png" alt="Main View" width="100%">
+    </td>
+    <td valign="top" align="center">
+      <img src="img/migration_utility.png" alt="History" width="100%">
+    </td>
+  </tr>
+</table>
+
+
 
 ### Menu Bar States
 
@@ -36,25 +92,18 @@ A lightweight plugin for **SwiftBar**.
 | :--- | :--- | :--- |
 | **Up to Date** | <img src="img/menubar_icon_everything_updated.png?v=2" height="24" alt="Everything Updated"> | System is clean, checkmark icon displayed. |
 | **Updates Ready** | <img src="img/menubar_icon_update_ready.png?v=2" height="24" alt="Updates Ready"> | Badge with update count and red sync icon. |
-| **Plugin Update** | <img src="img/menubar_icon_plugin_update.png" height="24" alt="Plugin Update"> | New version of the this tool is available. |
+| **Plugin Update** | <img src="img/menubar_icon_plugin_update.png" height="24" alt="Plugin Update"> | New version of the toolkit is available. |
 
-### Dropdown Interface
 
-| Category | Screenshot | Features |
-| :--- | :--- | :--- |
-| **Main View** | ![Monitor](img/menubar_monitor.png?v=2) | Overview of Homebrew and App Store updates. |
-| **Statistics** | ![Monitor Details](img/menubar_monitor_details.png) | Submenu showing counts for Casks, Formulae, and MAS apps. |
-| **History** | ![History](img/menubar_monitor_history.png) | Submenu tracking update counts for the last 7 and 30 days. |
+### Preferences & Control
+Manage the plugin behavior directly from the menu.
 
----
+| Feature | Description |
+| :--- | :--- |
+| **Update Frequency** | Toggle check intervals: `1h`, `2h`, `6h`, `12h`, or `1d`. |
+| **Self-Update** | Enable or disable self-updates. The plugin can check GitHub for its own new versions every 3 days. |
+| **Force Update** | Manually trigger a refresh of the toolkit scripts. |
 
-## 📋 Prerequisites
-
-* **macOS** (Intel or Apple Silicon).
-* Internet Connection.
-* No prior installation of Homebrew is required – the script handles the setup.
-
----
 
 ## 🛠 Quick Start
 
@@ -62,7 +111,7 @@ A lightweight plugin for **SwiftBar**.
 The fastest way to start is to run this command in your Terminal. It downloads and triggers the migration wizard:
 
 ```bash
-curl -L https://github.com/pr-fuzzylogic/mac_software_updater/releases/download/v1.2.3/Installer.zip -o Installer.zip && unzip -q Installer.zip && cd mac_software_updater && chmod +x setup_mac.sh && ./setup_mac.sh
+curl -L https://github.com/pr-fuzzylogic/mac_software_updater/releases/download/v1.2.4/Installer.zip -o Installer.zip && unzip -q Installer.zip && cd mac_software_updater && chmod +x setup_mac.sh && ./setup_mac.sh
 ```
 ### 2. Follow the Wizard
 The script will prompt you on how to handle detected applications. You can choose to migrate them or skip the process entirely.
@@ -81,7 +130,6 @@ This toolkit acts as the "glue" integrating standard macOS power-user tools:
 * **[Homebrew](https://brew.sh)** – The primary package manager. Used to install and update the majority of applications.
 * **[mas-cli](https://github.com/mas-cli/mas)** – Command-line interface for the Mac App Store. Allows updating Store apps without opening the GUI.
 * **[SwiftBar](https://swiftbar.app)** – Open-source app that runs the monitor script and displays the output in the macOS menu bar.
-* **[SF Symbols](https://developer.apple.com/sf-symbols/)** (Optional) – Apple's icon library. The installer will ask if you want to download it. It is **only** needed if you plan to manually customize the icons in the script code. The default icons work without it.
 
 ---
 
@@ -92,20 +140,17 @@ If you decide to remove the toolkit, an uninstaller script is automatically plac
 To uninstall:
 1. Open **Terminal**.
 2. Run the following command:
+
 ```zsh
 ~/Library/Application\ Support/MacSoftwareUpdater/uninstall.sh
 ```
 
 ---
 
-### 🎨 How to Customize Icons
-If you want to change the icons displayed in your menu bar, follow these steps:
-1. Open the **SF Symbols** app to find a symbol you like (e.g., `gear`, `bolt.fill`).
-2. Right-click the symbol and select **Copy Name**.
-3. Open `update_system.1h.sh` in a text editor.
-4. Find the line starting with `echo "$total | sfimage=..."`.
-5. Replace the value after `sfimage=` with your copied name.
-6. Save the file and SwiftBar will update automatically.
+## 📝 Notes
+> **Important:** Since this script uses checksums to detect updates, modifying the code (e.g., changing icons) will trigger a "Plugin Update Available" alert. If you customize the script, please go to Preferences → Disable Self-Update to prevent your changes from being overwritten.
+
+> **Known Issue:** Apps running as iPad/iPhone wrappers on Apple Silicon are invisible to this tool. This is a limitation of the upstream `mas` command-line utility used for App Store interactions.
 
 ## License
 

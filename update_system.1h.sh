@@ -1,7 +1,7 @@
 #!/bin/zsh
 
 # <bitbar.title>macOS Software Update & Migration Toolkit</bitbar.title>
-# <bitbar.version>v1.2.3</bitbar.version>
+# <bitbar.version>v1.2.4</bitbar.version>
 # <bitbar.author>pr-fuzzylogic</bitbar.author>
 # <bitbar.author.github>pr-fuzzylogic</bitbar.author.github>
 # <bitbar.desc>Monitors Homebrew and App Store updates, tracks history and stats.</bitbar.desc>
@@ -55,16 +55,11 @@ fi
 
 # --- SELF CLEANUP ROUTINE ---
 # Detects and removes utility scripts if accidentally placed in the plugin folder
-# This ensures only the main plugin file remains active in SwiftBar
-# Kept in v1.2.2 to clean up existing users' directories after update
 PLUGIN_Location=$(dirname "$0")
-
-# List of files that should not be in the plugin directory
 Junk_Files=("setup_mac.sh" "uninstall.sh")
 
 for junk in $Junk_Files; do
     if [[ -f "$PLUGIN_Location/$junk" ]]; then
-        # Silently remove the file
         rm -f "$PLUGIN_Location/$junk"
     fi
 done
@@ -105,7 +100,6 @@ chmod 700 "$APP_DIR" 2>/dev/null || true
 
 # Load configuration safely (parse text instead of executing code)
 UPDATES_ENABLED=$(grep -E '^[[:space:]]*UPDATES_ENABLED[[:space:]]*=' "$CONFIG_FILE" | head -n 1 | sed -E 's/^[[:space:]]*UPDATES_ENABLED[[:space:]]*=[[:space:]]*"(true|false)"[[:space:]]*$/\1/' || true)
-# Fallback to true if parsing failed or value is invalid
 if [[ "$UPDATES_ENABLED" != "true" && "$UPDATES_ENABLED" != "false" ]]; then
     UPDATES_ENABLED="true"
 fi
@@ -165,7 +159,6 @@ fi
 
 # 3. About Dialog
 if [[ "$1" == "about_dialog" ]]; then
-    # Pass VERSION variable as an argument to AppleScript for safety
     BUTTON=$(osascript -e 'on run {ver}' -e 'tell application "System Events"' -e 'activate' -e 'set myResult to display dialog "Mac Software Updater" & return & "Version " & ver & return & return & "An automated toolkit to monitor and update Homebrew & App Store applications." & return & return & "Created by: pr-fuzzylogic" with title "About" buttons {"Close", "Visit GitHub"} default button "Close" with icon note' -e 'return button returned of myResult' -e 'end tell' -e 'end run' -- "$VERSION")
     
     if [[ "$BUTTON" == "Visit GitHub" ]]; then
@@ -181,17 +174,14 @@ if [[ "$1" == "update_plugin" ]]; then
     
     echo "⬇️  Updating all toolkit components..."
 
-    # 1. Update the setup script in APP_DIR
     echo "Updating Setup Wizard..."
     curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 5 "$BASE_URL/setup_mac.sh" -o "$APP_DIR/setup_mac.sh"
     chmod +x "$APP_DIR/setup_mac.sh"
 
-    # 2. Update the uninstaller in APP_DIR
     echo "Updating Uninstaller..."
     curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 5 "$BASE_URL/uninstall.sh" -o "$APP_DIR/uninstall.sh"
     chmod +x "$APP_DIR/uninstall.sh"
 
-    # 3. Update the plugin itself (the current file)
     echo "Updating Menu Bar Monitor..."
     TEMP_TARGET="$(mktemp "${TMPDIR:-/tmp}/update_system.selfupdate.XXXXXX")"
     trap 'rm -f "$TEMP_TARGET"' EXIT
@@ -199,8 +189,6 @@ if [[ "$1" == "update_plugin" ]]; then
         if head -n 1 "$TEMP_TARGET" | grep -q '^#!/bin/zsh'; then
             mv "$TEMP_TARGET" "$0"
             chmod +x "$0"
-            
-            # Clear the update pending flag since we just updated
             rm -f "$APP_DIR/.plugin_update_pending"
             
             echo "✅ All components updated successfully."
@@ -223,11 +211,9 @@ fi
 
 # --- UPDATE SECTION (Runs in Terminal) ---
 if [[ "$1" == "run" ]]; then
-    # Set error flags to stop on failure
     set -e
     set -o pipefail
     
-    # Refresh PATH inside the run block
     if [[ -d "/opt/homebrew/bin" ]]; then
         export PATH="/opt/homebrew/bin:$PATH"
     else
@@ -237,22 +223,15 @@ if [[ "$1" == "run" ]]; then
     echo "🚀 Starting System Update..."
     echo "---------------------------"
 
-    # Update the repositories first to get the latest state
     echo "📦 Updating Homebrew Database..."
     brew update
 
-    # Calculate the actual number of pending updates AFTER the fresh fetch
     echo "🔍 Calculating pending updates..."
     
-    # Check Homebrew (filtered)
-    # We filter out "latest != latest" and fonts to match the UI logic
     real_brew_count=$(brew outdated --greedy | grep -v "latest) != latest" | grep -v "^font-" | grep -c -- '[^[:space:]]' || true)
     
-    # Check MAS
     real_mas_count=0
     if command -v mas &> /dev/null; then
-        # Check only for lines starting with a number (App ID) to avoid counting errors
-        # Używamy || true, aby zignorować błąd grepa, ale nie dodawać nadmiarowego "0"
         real_mas_count=$(mas outdated | grep -E '^[0-9]+' | wc -l | tr -d ' ' || true)
     fi
     
@@ -264,7 +243,6 @@ if [[ "$1" == "run" ]]; then
         echo "ℹ️ System seems up to date after fetch."
     fi
 
-    # Perform the upgrades
     echo "📦 Upgrading Formulae and Casks..."
     brew upgrade --greedy
     
@@ -276,7 +254,6 @@ if [[ "$1" == "run" ]]; then
         mas upgrade
     fi
 
-    # Log to history ONLY if the upgrade process finished successfully
     if [[ $updates_count -gt 0 ]]; then
         mkdir -p "$(dirname "$HISTORY_FILE")"
         if echo "$(date +%s)|$updates_count" >> "$HISTORY_FILE"; then
@@ -285,7 +262,6 @@ if [[ "$1" == "run" ]]; then
             echo "❌ Failed to write to history file."
         fi
         
-        # Log rotation
         if [[ $(wc -l < "$HISTORY_FILE") -gt 500 ]]; then
              tail -n 100 "$HISTORY_FILE" > "$HISTORY_FILE.tmp" && mv "$HISTORY_FILE.tmp" "$HISTORY_FILE"
         fi
@@ -294,7 +270,6 @@ if [[ "$1" == "run" ]]; then
     echo "---------------------------"
     echo "✅ Update Complete!"
     
-    # Trigger a refresh in SwiftBar
     echo "🔄 Refreshing SwiftBar..."
     open -g "swiftbar://refreshplugin?name=$(basename "$0")"
 
@@ -305,7 +280,6 @@ fi
 
 # --- STATUS CHECK SECTION (Background) ---
 
-# Check for Plugin Update once every 3 days using ETag for performance
 update_available=0
 if [[ "$UPDATES_ENABLED" == "true" ]]; then
     LAST_CHECK_FILE="$APP_DIR/.last_plugin_check"
@@ -316,17 +290,14 @@ if [[ "$UPDATES_ENABLED" == "true" ]]; then
     LAST_CHECK=0
     [[ -f "$LAST_CHECK_FILE" ]] && LAST_CHECK=$(cat "$LAST_CHECK_FILE")
     
-    # Check only if 3 days (259200 seconds) have passed
+    # Check only if 3 days passed
     if [[ $((CURRENT_TIME - LAST_CHECK)) -gt 259200 ]]; then
         last_etag=""
         [[ -f "$ETAG_FILE" ]] && last_etag=$(cat "$ETAG_FILE")
 
-        # Perform HEAD request to check ETag without downloading the file
-        # Using connect-timeout to ensure UI responsiveness
         current_etag=$(curl -fI -LsS --proto '=https' --tlsv1.2 --connect-timeout 3 "$REMOTE_RAW_URL" | grep -i "etag:" | awk '{print $2}' | tr -d '\r\n')
 
         if [[ -n "$current_etag" && "$current_etag" != "$last_etag" ]]; then
-            # ETag changed, now perform full check with SHA-256
             remote_temp="$(mktemp "${TMPDIR:-/tmp}/update_system.remotecheck.XXXXXX")"
             trap 'rm -f "$remote_temp"' EXIT
             if curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 3 "$REMOTE_RAW_URL" -o "$remote_temp"; then
@@ -336,27 +307,22 @@ if [[ "$UPDATES_ENABLED" == "true" ]]; then
                     
                     if [[ "$local_hash" != "$remote_hash" ]]; then
                         touch "$PENDING_FLAG"
-                        # Store ETag only after confirming a real hash difference
                         echo "$current_etag" > "$ETAG_FILE"
                     else
                         rm -f "$PENDING_FLAG"
-                        # Also update ETag if file is different but version is same (e.g. metadata change)
                         echo "$current_etag" > "$ETAG_FILE"
                     fi
                 fi
                 rm -f "$remote_temp"
             fi
         fi
-        # Update timestamp to wait another 3 days regardless of the outcome
         echo "$CURRENT_TIME" > "$LAST_CHECK_FILE"
     fi
     
-    # Persist the update notification in UI if flag exists
     [[ -f "$PENDING_FLAG" ]] && update_available=1
 fi
 
 # Check Homebrew for updates
-# We keep --greedy to catch auto-updating apps, but filter out "latest" tautologies and fonts
 list_brew=$(brew outdated --verbose --greedy | grep -v "latest) != latest" | grep -v "^font-")
 count_brew=$(echo -n "$list_brew" | grep -c -- '[^[:space:]]' || true)
 
@@ -365,18 +331,30 @@ list_mas=""
 count_mas=0
 if command -v mas &> /dev/null; then
     list_mas=$(mas outdated)
-    # Filter: Count only lines starting with digits (valid App IDs)
     count_mas=$(echo "$list_mas" | grep -E '^[0-9]+' | wc -l | tr -d ' ')
 fi
 
 total=$((count_brew + count_mas))
 
-# Collect total installed statistics for the submenu
-count_casks=$(brew list --cask | wc -l | tr -d ' ')
-count_formulae=$(brew list --formula | wc -l | tr -d ' ')
+# Collect total installed statistics for the submenu (Optimized for listing with versions)
+
+# 1. Casks with versions
+# Output format of brew list --cask --versions: "token 1.2.3"
+raw_casks=$(brew list --cask --versions)
+count_casks=$(echo "$raw_casks" | grep -c '[^[:space:]]' || echo 0)
+
+# 2. Formulae with versions
+# Output format of brew list --formula --versions: "token 1.2.3"
+raw_formulae=$(brew list --formula --versions)
+count_formulae=$(echo "$raw_formulae" | grep -c '[^[:space:]]' || echo 0)
+
+# 3. MAS (App Store)
+# Output format of mas list: "123456 App Name (1.2.3)"
+installed_mas=""
 count_mas_installed=0
 if command -v mas &> /dev/null; then
-    count_mas_installed=$(mas list | wc -l | tr -d ' ')
+    installed_mas=$(mas list)
+    count_mas_installed=$(echo "$installed_mas" | wc -l | tr -d ' ')
 fi
 total_installed=$((count_casks + count_formulae + count_mas_installed))
 
@@ -398,7 +376,7 @@ fi
 
 # --- UI RENDERING ---
 
-# Set main menu bar icon status based on updates and plugin availability
+# Set main menu bar icon status
 if [[ $update_available -eq 1 ]]; then
     if [[ $total -gt 0 ]]; then
         echo " $total | sfimage=arrow.down.circle.fill color=$COLOR_PURPLE"
@@ -409,7 +387,6 @@ else
     if [[ $total -gt 0 ]]; then
         echo " $total | sfimage=arrow.triangle.2.circlepath.circle color=$COLOR_WARN"
     else
-        # No color specified here ensures it adapts to system text color (monochrome)
         echo " | sfimage=checkmark.circle"
     fi
 fi
@@ -438,17 +415,53 @@ else
     fi
     if [[ $count_mas -gt 0 ]]; then
         echo "App Store ($count_mas): | color=$COLOR_INFO size=12 sfimage=bag"
-        # Show App Store updates without the numerical digital ID for a cleaner UI
-        echo "$list_mas" | awk '{$1=""; print $0}' | while read -r line; do echo "$line | size=12 font=Monaco"; done
+        # Hide IDs in the update list as well - aggressively
+        echo "$list_mas" | sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//' | while read -r line; do echo "$line | size=12 font=Monaco"; done
     fi
 fi
 
 # Render statistics and history with submenus
 echo "---"
 echo "Monitored: $total_installed items | color=$COLOR_INFO size=12 sfimage=chart.bar.xaxis"
+
+# Casks submenu with versions (Truncated to 20 chars)
 echo "-- Apps (Brew Cask): $count_casks | color=$COLOR_INFO size=11 sfimage=square.stack.3d.up"
+if [[ -n "$raw_casks" ]]; then
+    # Format: "Token (Version)" - Version truncated if > 20 chars
+    echo "$raw_casks" | awk '{
+        ver=$2;
+        if (length(ver) > 20) {
+            ver = substr(ver, 1, 18) ".."
+        }
+        print $1 " (" ver ")"
+    }' | while read -r item; do
+        [[ -n "$item" ]] && echo "---- $item | size=11 font=Monaco trim=true"
+    done
+fi
+
+# Formulae submenu with versions (Truncated)
 echo "-- CLI Tools (Brew Formulae): $count_formulae | color=$COLOR_INFO size=11 sfimage=terminal"
+if [[ -n "$raw_formulae" ]]; then
+    # Format: "Token (Version)" - Version truncated
+    echo "$raw_formulae" | awk '{
+        ver=$2;
+        if (length(ver) > 20) {
+            ver = substr(ver, 1, 18) ".."
+        }
+        print $1 " (" ver ")"
+    }' | while read -r item; do
+        [[ -n "$item" ]] && echo "---- $item | size=11 font=Monaco trim=true"
+    done
+fi
+
+# App Store submenu (ID removed aggressively)
 echo "-- App Store: $count_mas_installed | color=$COLOR_INFO size=11 sfimage=bag"
+if [[ -n "$installed_mas" ]]; then
+    # Regex: Remove leading digits and ANY whitespace (space, tab, etc)
+    echo "$installed_mas" | sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//' | while read -r item; do
+        [[ -n "$item" ]] && echo "---- $item | size=11 font=Monaco trim=true"
+    done
+fi
 
 echo "History: | color=$COLOR_INFO size=12 sfimage=clock.arrow.circlepath"
 echo "-- Past 7 days: $updates_week updates | color=$COLOR_INFO size=11 sfimage=calendar"
