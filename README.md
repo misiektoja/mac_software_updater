@@ -1,8 +1,8 @@
-<div align="center">
+<div align="center" markdown="1">
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Last Commit](https://img.shields.io/gitea/last-commit/pr-fuzzylogic/mac_software_updater?gitea_url=https%3A%2F%2Fcodeberg.org&label=last%20update&color=blue)](https://codeberg.org/pr-fuzzylogic/mac_software_updater/commits/branch/main)
-[![Version](https://img.shields.io/badge/version-1.2.5-blue)](https://codeberg.org/pr-fuzzylogic/mac_software_updater/releases)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue)](https://codeberg.org/pr-fuzzylogic/mac_software_updater/releases)
 
 ![Platform](https://img.shields.io/badge/macOS-12%2B-blue?logo=apple&logoColor=white)
 ![Zsh](https://img.shields.io/badge/shell-Zsh-blue?logo=gnu-bash&logoColor=white)
@@ -67,7 +67,7 @@ A lightweight plugin for **SwiftBar**.
       <img src="img/menubar_monitor.png" alt="Main View" height="400">
     </td>
     <td valign="top" align="center">
-      <img src="img/menubar_monitor_history.png" alt="History" wheight="400">
+      <img src="img/menubar_monitor_history.png" alt="History" weight="400">
     </td>
   </tr>
   <tr>
@@ -124,7 +124,7 @@ The fastest way to start is to run this command in your Terminal. It downloads a
 
 **Option A: Standard Install (GitHub)**
 ```bash
-curl -L https://github.com/pr-fuzzylogic/mac_software_updater/releases/download/v1.2.5/Installer.zip -o Installer.zip && unzip -q Installer.zip && cd mac_software_updater && chmod +x setup_mac.sh && ./setup_mac.sh
+curl -L https://github.com/pr-fuzzylogic/mac_software_updater/releases/download/v1.3.0/Installer.zip -o Installer.zip && unzip -q Installer.zip && cd mac_software_updater && chmod +x setup_mac.sh && ./setup_mac.sh
 ```
 
 **Option B: Emergency Mirror (Codeberg)**
