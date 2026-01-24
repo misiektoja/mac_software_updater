@@ -109,16 +109,16 @@ swiftbar_sq_escape() {
 download_with_failover() {
     local file_name="$1"
     local output_path="$2"
-    
+
     # Try Primary (GitHub)
     # -f fails on HTTP errors (404), -L follows redirects, -s silent
     if curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 5 "$URL_PRIMARY_BASE/$file_name" -o "$output_path"; then
         echo "✅ GitHub available, file downloaded"
         return 0
     fi
-    
+
     echo "⚠️ Primary source (Github) failed. Trying backup..."
-    
+
     # Try Backup (Codeberg)
     if curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 8 "$URL_BACKUP_BASE/$file_name" -o "$output_path"; then
         echo "✅ Codeberg available, file downloaded"
@@ -144,14 +144,14 @@ calculate_hash() {
 
 check_for_updates_manual() {
     echo "Checking for updates..."
-    
+
     local temp_headers="$(mktemp "${TMPDIR:-/tmp}/update_headers.XXXXXX")"
     local temp_body="$(mktemp "${TMPDIR:-/tmp}/update_body.XXXXXX")"
-    
+
     trap 'rm -f "$temp_headers" "$temp_body"' EXIT
-    
+
     local local_etag=""
-    
+
     [[ -f "$ETAG_FILE" ]] && local_etag=$(cat "$ETAG_FILE")
 
     # Check ETag (Primary Source)
@@ -170,7 +170,7 @@ check_for_updates_manual() {
 
     # Download (Failover Logic)
     local source_verified="false"
-    
+
     if [[ "$http_code" == "200" ]]; then
         if curl -s -o "$temp_body" "$URL_PRIMARY_BASE/update_system.1h.sh"; then
             grep -i "etag:" "$temp_headers" | awk '{print $2}' | tr -d '"\r\n' > "$ETAG_FILE"
@@ -193,7 +193,7 @@ check_for_updates_manual() {
     fi
 
     # Verify & Compare
-    local local_ver="${VERSION//v/}" 
+    local local_ver="${VERSION//v/}"
     local remote_ver=$(extract_version "$temp_body")
     local local_hash=$(calculate_hash "$SCRIPT_FILE")
     local remote_hash=$(calculate_hash "$temp_body")
@@ -240,7 +240,7 @@ if [[ "$1" == "change_interval" ]]; then
     if [[ "$SELECTION" == "false" ]]; then
         exit 0
     fi
-    
+
     NEW_SUFFIX=""
     case "$SELECTION" in
         "1 hour")   NEW_SUFFIX="1h" ;;
@@ -248,7 +248,7 @@ if [[ "$1" == "change_interval" ]]; then
         "6 hours")  NEW_SUFFIX="6h" ;;
         "12 hours") NEW_SUFFIX="12h" ;;
         "1 day")    NEW_SUFFIX="1d" ;;
-        *)          exit 1 ;; 
+        *)          exit 1 ;;
     esac
 
     DIR=$(dirname "$0")
@@ -292,11 +292,11 @@ if [[ "$1" == "run" ]]; then
         echo "Updating toolkit components before system update..."
         download_with_failover "setup_mac.sh" "$APP_DIR/setup_mac.sh" && chmod +x "$APP_DIR/setup_mac.sh"
         download_with_failover "uninstall.sh" "$APP_DIR/uninstall.sh" && chmod +x "$APP_DIR/uninstall.sh"
-        
+
         TEMP_TARGET="$(mktemp "${TMPDIR:-/tmp}/update_system.selfupdate.XXXXXX")"
-        
+
         trap 'rm -f "$TEMP_TARGET"' EXIT
-        
+
         if download_with_failover "update_system.1h.sh" "$TEMP_TARGET"; then
             mv "$TEMP_TARGET" "$0" && chmod +x "$0"
             rm -f "$PENDING_FLAG"
@@ -312,14 +312,14 @@ if [[ "$1" == "run" ]]; then
 
     echo "🔍 Calculating pending updates..."
     real_brew_count=$(brew outdated --greedy | grep -v "latest) != latest" | grep -v "^font-" | grep -c -- '[^[:space:]]' || true)
-    
+
     real_mas_count=0
     if command -v mas &> /dev/null; then
         real_mas_count=$(mas outdated | grep -E '^[0-9]+' | wc -l | tr -d ' ' || true)
     fi
-    
+
     updates_count=$((real_brew_count + real_mas_count))
-    
+
     if [[ $updates_count -gt 0 ]]; then
         echo "💡 Found $updates_count updates to apply."
     else
@@ -328,10 +328,10 @@ if [[ "$1" == "run" ]]; then
 
     echo "📦 Upgrading Formulae and Casks..."
     brew upgrade --greedy
-    
+
     echo "🧹 Cleaning up..."
     brew cleanup --prune=all
-    
+
     if command -v mas &> /dev/null; then
         echo "🍎 Updating App Store Applications..."
         mas upgrade
@@ -344,7 +344,7 @@ if [[ "$1" == "run" ]]; then
         else
             echo "❌ Failed to write to history file."
         fi
-        
+
         if [[ $(wc -l < "$HISTORY_FILE") -gt 500 ]]; then
              tail -n 100 "$HISTORY_FILE" > "$HISTORY_FILE.tmp" && mv "$HISTORY_FILE.tmp" "$HISTORY_FILE"
         fi
@@ -463,7 +463,11 @@ else
         # Processes the list of App Store updates by removing numeric app identifiers from the start of each line
         # Appends SwiftBar formatting parameters to each line for consistent styling in the menu interface
         # Utilizes regular expressions to isolate application names and versions for a cleaner visual output
-        echo "$list_mas" | sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//' | while read -r line; do echo "$line | size=12 font=Monaco"; done
+        echo "$list_mas" | sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//' | while read -r line; do
+            # Clean up potential extra spaces between name and version if needed
+            line=$(echo "$line" | sed -E 's/[[:space:]]{2,}/ /g')
+            echo "$line | size=12 font=Monaco"
+        done
     fi
 fi
 
@@ -479,8 +483,8 @@ echo "Monitored: $total_installed items | color=$COLOR_INFO size=12 sfimage=char
 echo "-- Apps (Brew Cask): $count_casks | color=$COLOR_INFO size=11 sfimage=square.stack.3d.up"
 if [[ -n "$raw_casks" ]]; then
     echo "$raw_casks" | awk -v q="'" '{
-        token=$1; 
-        $1=""; 
+        token=$1;
+        $1="";
         ver=$0;
         gsub(/^[ \t]+|[ \t]+$/, "", ver); # Remove redundant spaces
         if (length(ver) > 20) ver = substr(ver, 1, 18) "..";
@@ -497,8 +501,8 @@ fi
 echo "-- CLI Tools (Brew Formulae): $count_formulae | color=$COLOR_INFO size=11 sfimage=terminal"
 if [[ -n "$raw_formulae" ]]; then
     echo "$raw_formulae" | awk -v q="'" '{
-        token=$1; 
-        $1=""; 
+        token=$1;
+        $1="";
         ver=$0;
         gsub(/^[ \t]+|[ \t]+$/, "", ver);
         if (length(ver) > 20) ver = substr(ver, 1, 18) "..";
@@ -514,8 +518,8 @@ fi
 echo "-- App Store: $count_mas_installed | color=$COLOR_INFO size=11 sfimage=bag"
 if [[ -n "$installed_mas" ]]; then
     echo "$installed_mas" | awk -v q="'" '{
-        id=$1; 
-        $1=""; 
+        id=$1;
+        $1="";
         name=$0;
         gsub(/^[ \t]+|[ \t]+$/, "", name); # Remove leading space after ID extraction
         # Build link: https://apps.apple.com/app/id<NUMER>
