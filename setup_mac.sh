@@ -21,7 +21,7 @@ echo "${fg[blue]}██║ ╚═╝ ██║██║  ██║╚███�
 echo "${fg[blue]}╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝${reset_color}"
 echo ""
 echo "${fg[cyan]}--------------------------------------------------${reset_color}"
-echo "${fg[bold]}  mac_software_updater${reset_color} v1.3.0"
+echo "${fg[bold]}  mac_software_updater${reset_color} v1.3.1"
 echo "${fg[cyan]}  Software Update & Application Migration Toolkit${reset_color}"
 echo "${fg[cyan]}--------------------------------------------------${reset_color}"
 echo "This script will: "
@@ -43,16 +43,16 @@ URL_BACKUP_BASE="https://codeberg.org/pr-fuzzylogic/mac_software_updater/raw/bra
 download_with_failover() {
     local file_name="$1"
     local output_path="$2"
-    
+
     # Try Primary (GitHub)
     # -f fails on HTTP errors (404), -L follows redirects, -s silent
     if curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 5 "$URL_PRIMARY_BASE/$file_name" -o "$output_path"; then
         echo "✅ GitHub available, file downloaded"
         return 0
     fi
-    
+
     echo "⚠️ Primary source (Github) failed. Trying backup..."
-    
+
     # Try Backup (Codeberg)
     if curl -fLsS --proto '=https' --tlsv1.2 --connect-timeout 8 "$URL_BACKUP_BASE/$file_name" -o "$output_path"; then
         echo "✅ Codeberg available, file downloaded"
@@ -89,7 +89,7 @@ quit_app() {
             if ! pgrep -f "$app_name" >/dev/null; then break; fi
             sleep 1
         done
-        
+
         # Force kill if still lingering
         if pgrep -f "$app_name" >/dev/null; then
             echo "Forcing close..."
@@ -114,7 +114,7 @@ backup_app() {
 # This forces Homebrew to re-register the app bundle and update its internal database.
 install_brew_cask_clean() {
     local token="$1"
-    # Remove existing metadata to prevent "already installed" errors 
+    # Remove existing metadata to prevent "already installed" errors
     # and ensure the app bundle is properly linked/copied to /Applications.
     if brew list --cask "$token" &>/dev/null; then
         echo "Unlinking existing Homebrew metadata to force clean install..."
@@ -138,7 +138,7 @@ if ! command -v brew &> /dev/null; then
     echo "Homebrew is required to manage your packages and updates."
     echo "Note: If you believe Homebrew is already installed, please cancel (Ctrl+C) and add it to your PATH."
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    if [[ -f /opt/homebrew/bin/brew ]]; then eval "$(/opt/homebrew/bin/brew shellenv)"; 
+    if [[ -f /opt/homebrew/bin/brew ]]; then eval "$(/opt/homebrew/bin/brew shellenv)";
     elif [[ -f /usr/local/bin/brew ]]; then eval "$(/usr/local/bin/brew shellenv)"; fi
 else
     echo "${fg[green]}Homebrew is already installed.${reset_color} No action required for this step."
@@ -164,10 +164,20 @@ echo ""
 # Migration Process
 if ask_confirmation "Do you want to run the application migration? (Scanning and linking to Brew/AppStore)"; then
 
+    echo
     echo "⚠️ Warning: Migrating paid apps to the App Store may require repurchasing. Prefer Homebrew to preserve your license."
+    echo
+
+    ENABLE_VERSION_SCAN=0
+    if ask_confirmation "Enable detailed version scanning? (helps migration decisions, may slow down the scan)"; then
+        ENABLE_VERSION_SCAN=1
+    fi
+
+    echo
     echo "Scanning installed applications..."
 
     typeset -A app_sources
+    typeset -A app_versions
     typeset -a app_list
 
     if [[ -d "/opt/homebrew/Caskroom" ]]; then
@@ -188,7 +198,7 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
     for app_path in /Applications/{,*/,*/*/}*.app(N/); do
         # Skip apps located inside other app bundles to avoid helpers or plugins
         if [[ "$app_path" == *.app/*.app* ]]; then continue; fi
-        
+
         app_filename=$(basename "$app_path")
         app_name="${app_filename%.app}"
 
@@ -199,7 +209,15 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
         fi
 
         app_list+=("$app_name")
-        
+
+        # Get local version
+        if [[ "$ENABLE_VERSION_SCAN" -eq 1 ]]; then
+            app_version=$(mdls -name kMDItemVersion -raw "$app_path" 2>/dev/null | tr -d '"' || echo "")
+            if [[ -n "$app_version" && "$app_version" != "(null)" ]]; then
+                 app_versions[$app_name]="$app_version"
+            fi
+        fi
+
         # Check if the app is managed by Homebrew via symlink in Caskroom
         if [[ -L "$app_path" ]]; then
             target_path=$(readlink "$app_path")
@@ -250,7 +268,7 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
         done
 
         if [[ "$match_found" -eq 1 ]]; then continue; fi
-        
+
         # Try to get ID, but if it fails (e.g. system app on read-only volume), default to a fake apple ID
         bundle_id=$(mdls -name kMDItemCFBundleIdentifier -raw "$app_path" 2>/dev/null || echo "com.apple.unknown")
         if [[ "$bundle_id" == com.apple.* ]]; then
@@ -266,11 +284,17 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
 
     for app in "${app_list[@]}"; do
         source="${app_sources[$app]}"
+        version="${app_versions[$app]}"
         color="$reset_color"
         [[ "$source" == "HOMEBREW" ]] && color="$fg[green]"
         [[ "$source" == "APP STORE" ]] && color="$fg[cyan]"
         [[ "$source" == "OTHER" ]] && color="$fg[yellow]"
-        echo "${color}[$source] $app${reset_color}"
+
+        if [[ -n "$version" ]]; then
+            echo "${color}[$source] $app ($version)${reset_color}"
+        else
+            echo "${color}[$source] $app${reset_color}"
+        fi
     done
 
     echo ""
@@ -292,7 +316,11 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
         fi
 
         echo ""
-        echo "App: ${fg[bold]}$app${reset_color} (Current: $source)"
+        if [[ -n "${app_versions[$app]}" ]]; then
+            echo "App: ${fg[bold]}$app${reset_color} (Current: $source, Version: ${app_versions[$app]})"
+        else
+            echo "App: ${fg[bold]}$app${reset_color} (Current: $source)"
+        fi
 
         # Pre-check availability
         clean_name=$(echo "$app" | sed 's/[0-9.]*$//' | tr -d ':-')
@@ -314,7 +342,17 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
                 if [[ "$norm_mas" != "$norm_app"* ]]; then mas_valid=0; fi
             fi
             if [[ "$mas_valid" -eq 1 ]]; then
-                mas_status="${fg[green]}Available${reset_color} (${fg[cyan]}$mas_name${reset_color}) ${fg[blue]}($mas_url)${reset_color}"
+                # Extract version from parentheses if present
+                if [[ "$ENABLE_VERSION_SCAN" -eq 1 ]]; then
+                    mas_version=$(echo "$mas_check" | sed -E 's/.*\(([^)]+)\)$/\1/')
+                    if [[ "$mas_version" != "$mas_check" ]]; then
+                        mas_status="${fg[green]}Available${reset_color} (${fg[cyan]}$mas_version${reset_color}) ${fg[blue]}($mas_url)${reset_color}"
+                    else
+                        mas_status="${fg[green]}Available${reset_color} (${fg[cyan]}$mas_name${reset_color}) ${fg[blue]}($mas_url)${reset_color}"
+                    fi
+                else
+                    mas_status="${fg[green]}Available${reset_color} (${fg[cyan]}$mas_name${reset_color}) ${fg[blue]}($mas_url)${reset_color}"
+                fi
                 mas_available=1
             else
                 mas_status="${fg[red]}Mismatch in Strict Mode${reset_color} (${fg[yellow]}$mas_name${reset_color})"
@@ -327,9 +365,17 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
 
         # Check Homebrew
         token=$(echo "$app" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-        if brew info --cask "$token" &> /dev/null; then
+        brew_info_output=$(brew info --cask "$token" 2>/dev/null || true)
+
+        if [[ -n "$brew_info_output" ]]; then
             brew_url="https://formulae.brew.sh/cask/$token"
-            brew_status="${fg[green]}Available${reset_color} (${fg[cyan]}$token${reset_color}) ${fg[blue]}($brew_url)${reset_color}"
+
+            if [[ "$ENABLE_VERSION_SCAN" -eq 1 ]]; then
+                brew_version=$(echo "$brew_info_output" | head -n 1 | awk '{print $3}')
+                brew_status="${fg[green]}Available${reset_color} (${fg[cyan]}$brew_version${reset_color}) ${fg[blue]}($brew_url)${reset_color}"
+            else
+                brew_status="${fg[green]}Available${reset_color} (${fg[cyan]}$token${reset_color}) ${fg[blue]}($brew_url)${reset_color}"
+            fi
             brew_available=1
         else
              # Sanity Check for Search Results (Eve != deveco-studio)
@@ -344,11 +390,17 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
                 fi
              fi
 
-             if [[ "$match_valid" -eq 1 ]]; then
-                token="$brew_search"
-                brew_url="https://formulae.brew.sh/cask/$token"
-                brew_status="${fg[yellow]}Found as${reset_color} (${fg[cyan]}$brew_search${reset_color}) ${fg[blue]}($brew_url)${reset_color}"
-                brew_available=1
+              if [[ "$match_valid" -eq 1 ]]; then
+                 token="$brew_search"
+                 brew_url="https://formulae.brew.sh/cask/$token"
+
+                 if [[ "$ENABLE_VERSION_SCAN" -eq 1 ]]; then
+                     brew_version=$(brew info --cask "$token" | head -n 1 | awk '{print $3}')
+                     brew_status="${fg[yellow]}Found as${reset_color} (${fg[cyan]}$brew_version${reset_color}) ${fg[blue]}($brew_url)${reset_color}"
+                 else
+                     brew_status="${fg[yellow]}Found as${reset_color} (${fg[cyan]}$token${reset_color}) ${fg[blue]}($brew_url)${reset_color}"
+                 fi
+                 brew_available=1
              else
                 brew_status="${fg[red]}Not found${reset_color}"
                 brew_available=0
@@ -380,7 +432,7 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
                     was_running=0
                     if pgrep -f "$app" >/dev/null; then was_running=1; fi
                     quit_app "$app"
-                    
+
                     app_path="/Applications/${app}.app"
                     backup_path="/Applications/${app}.app.bak"
                     backup_app "$app_path" "$backup_path"
@@ -451,7 +503,7 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
                             app_path="/Applications/${app}.app"
                             backup_path="/Applications/${app}.app.bak"
                             backup_app "$app_path" "$backup_path"
-                            
+
                             if install_brew_cask_clean "$user_token"; then
                                 echo "${fg[green]}Migration successful!${reset_color}"
                                 rm -rf "$backup_path" || sudo rm -rf "$backup_path"
@@ -524,7 +576,7 @@ chmod 700 "$APP_DIR" 2>/dev/null || true
 
 echo ""
 echo "${fg[yellow]}=== PLUGIN SETTINGS ===${reset_color}"
-# Left in code for future use. 
+# Left in code for future use.
 # chmod 600 "$CONFIG_FILE" 2>/dev/null || true
 
 # Install/Update the Main Plugin (Only this goes to SwiftBar folder)
