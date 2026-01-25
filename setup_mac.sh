@@ -175,10 +175,12 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
 
     echo
     echo "Scanning installed applications..."
+    echo
 
     typeset -A app_sources
     typeset -A app_versions
     typeset -a app_list
+    typeset -a all_app_paths
 
     if [[ -d "/opt/homebrew/Caskroom" ]]; then
         CASKROOM_PATH="/opt/homebrew/Caskroom"
@@ -193,8 +195,7 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
         INSTALLED_CASKS_STR=""
     fi
 
-    # Scan /Applications recursively up to 2 levels deep
-    # (N/) - null_glob to avoid errors if no match and restrict results to directories
+    # First, collect all app paths to count total for progress bar
     for app_path in /Applications/{,*/,*/*/}*.app(N/); do
         # Skip apps located inside other app bundles to avoid helpers or plugins
         if [[ "$app_path" == *.app/*.app* ]]; then continue; fi
@@ -203,10 +204,50 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
         app_name="${app_filename%.app}"
 
         # Exclude uninstallers and setup tools using case-insensitive globbing
-        # The (#i) flag ensures matches like Uninstaller, uninstaller, or APPNAMEUninstaller
         if [[ "$app_name" == (#i)*uninstall* || "$app_name" == (#i)*updater* || "$app_name" == (#i)*setup* ]]; then
             continue
         fi
+
+        all_app_paths+=("$app_path")
+    done
+
+    # Progress bar function
+    show_progress() {
+        local current=$1
+        local total=$2
+        local app_name=$3
+        local bar_width=40
+        local percent=$((current * 100 / total))
+        local filled=$((current * bar_width / total))
+        local empty=$((bar_width - filled))
+
+        # Build the bar
+        local bar=""
+        for ((i=0; i<filled; i++)); do bar+="█"; done
+        for ((i=0; i<empty; i++)); do bar+="░"; done
+
+        # Truncate app name if too long
+        local max_name_len=25
+        if [[ ${#app_name} -gt $max_name_len ]]; then
+            app_name="${app_name:0:$((max_name_len-3))}..."
+        fi
+
+        # Print progress bar (using \r to overwrite the line)
+        printf "\r${fg[cyan]}[%s]${reset_color} %3d%% (%d/%d) ${fg[yellow]}%-${max_name_len}s${reset_color}" \
+            "$bar" "$percent" "$current" "$total" "$app_name"
+    }
+
+    total_apps=${#all_app_paths[@]}
+    current_app=0
+
+    # Scan all collected applications with progress feedback
+    for app_path in "${all_app_paths[@]}"; do
+        app_filename=$(basename "$app_path")
+        app_name="${app_filename%.app}"
+
+        # Update progress bar
+        ((current_app++)) || true
+        show_progress $current_app $total_apps "$app_name"
 
         app_list+=("$app_name")
 
@@ -284,6 +325,9 @@ if ask_confirmation "Do you want to run the application migration? (Scanning and
         app_sources[$app_name]="OTHER"
     done
 
+    # Clear progress bar line and move to next line
+    printf "\r%-80s\r" " "
+    echo "${fg[green]}✔ Scan complete! Found $total_apps applications.${reset_color}"
     echo ""
     echo "${fg[blue]}=== INSTALLED APPLICATIONS ===${reset_color}"
 
