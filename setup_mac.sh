@@ -813,6 +813,16 @@ rm -f "$PLUGIN_DIR/uninstall.sh"
 echo "Refreshing SwiftBar..."
 open -g "swiftbar://refreshallplugins"
 
+# Enable autostart for SwiftBar
+echo "Ensuring SwiftBar autostarts at login..."
+if ! osascript -e 'tell application "System Events" to get the name of every login item' | grep -q "SwiftBar"; then
+    echo "Adding SwiftBar to Login Items..."
+    osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/SwiftBar.app", hidden:false}'
+    echo "${fg[green]}✓ SwiftBar added to Login Items.${reset_color}"
+else
+    echo "${fg[green]}✓ SwiftBar is already in Login Items.${reset_color}"
+fi
+
 echo ""
 echo "${fg[green]}Setup complete!${reset_color}"
 echo "1. Plugin installed in: ${fg[cyan]}$PLUGIN_DIR${reset_color}"
