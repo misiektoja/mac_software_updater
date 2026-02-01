@@ -504,7 +504,7 @@ if [[ "$1" == "run" ]]; then
 		timestamp=$(date +%s)
 
 		# Parse 'brew outdated' output using ZSH line splitting flag (f)
-		raw_brew_outdated=$(brew outdated --verbose --greedy)
+		raw_brew_outdated=$(brew outdated --verbose --greedy || true)
 		for line in "${(@f)raw_brew_outdated}"; do
 			if [[ "$line" == *"("*")"* ]]; then
 				name=${line%% *}
@@ -516,7 +516,7 @@ if [[ "$1" == "run" ]]; then
 				[[ "$line" == *"!="* ]] && src="cask"
 
 				update_log_buffer+=("$timestamp|$src|$name|$old_ver|$new_ver")
-				((count_brew_pending++))
+				((++count_brew_pending))
 			fi
 		done
 
@@ -537,7 +537,7 @@ if [[ "$1" == "run" ]]; then
 					 local_ver=$(defaults read "/Applications/$app_name.app/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo "?")
 				fi
 				update_log_buffer+=("$timestamp|mas|$app_name|$local_ver|$new_ver")
-				((count_mas_pending++))
+				((++count_mas_pending))
 			done
 		fi
 
@@ -659,7 +659,7 @@ for app_name in ${(k)ghost_apps}; do
     result=$(check_manual_app_version "$app_name" "$app_id")
     if [[ -n "$result" ]]; then
         manual_updates_list+="$result"$'\n'
-        ((count_manual++))
+        ((++count_manual))
     fi
 done
 
@@ -739,7 +739,7 @@ if [[ -f "$HISTORY_FILE" ]]; then
                 last_date_7d="$log_date_str"
             fi
             history_7d+="${item_line}"$'\n'
-            ((count_7d++))
+            ((++count_7d))
         fi
 
         # Populate 30 Days Bucket (includes 7 days items)
@@ -749,7 +749,7 @@ if [[ -f "$HISTORY_FILE" ]]; then
                 last_date_30d="$log_date_str"
             fi
             history_30d+="${item_line}"$'\n'
-            ((count_30d++))
+            ((++count_30d))
         fi
 
     #done < <(sed '1!G;h;$!d' "$HISTORY_FILE")
